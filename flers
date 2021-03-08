@@ -1,0 +1,52 @@
+# /usr/bin/env bash
+
+# flers - file level encrypted remote storage
+# usage:
+# 	flers create nas:/coolstorage
+#   flers mount nas:/coolstorage storage
+#   flers umount storage
+
+operation=$1
+
+
+if [ $operation = 'mount' ]
+then
+	src=$2
+	target=$3
+	
+	path_enc=$(readlink -f .encrypted_$target)
+	path_final=$(readlink -f $target)
+
+	
+	mkdir -p $path_enc
+	chown $USER:$USER $path_enc
+	mkdir -p $path_final
+	chown $USER:$USER $path_final
+	
+	echo "Mounting underlying file system"
+	sshfs -o uid=$(id -u),gid=$(id -g),umask=077 $src $path_enc
+	
+	echo "Mounting file system"
+	encfs $path_enc $path_final
+	
+elif [ $operation = 'umount' ]
+then
+	target=$2
+	
+	path_enc=$(readlink -f .encrypted_$target)
+	path_final=$(readlink -f $target)
+	
+	echo "Syncing"
+	sync
+
+	echo "Unmounting file system"
+	umount $path_final
+
+	echo "Unmounting underlying file system"
+	fusermount -u $path_enc
+	
+	rmdir $path_final
+	rmdir $path_enc
+else
+	echo "Valid commands: create mount umount"
+fi

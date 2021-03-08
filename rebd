@@ -1,0 +1,51 @@
+# /usr/bin/env bash
+
+# rebd - remote encrypted block device
+# usage:
+# 	rebd create nas:/coolstorage
+#   rebd mount nas:/coolstorage storage
+#   rebd umount storage
+
+operation=$1
+
+
+if [ $operation = 'mount' ]
+then
+	src=$2
+	target=$3
+
+	sudo mkdir -p ./.container_$target
+	sudo chown $USER:$USER ./.container_$target
+	sudo mkdir -p ./$target
+	sudo chown $USER:$USER ./$target
+
+	# mount container file system (unencrypted)
+	echo "Mounting container"
+	sudo sshfs $USER@$src ./.container_$target
+
+	# open encrypted block device file within
+	echo "Unlocking Block Device"
+	sudo cryptsetup luksOpen ./.container_$target/encrypted.luks partition_$target
+
+	# mount file system from that device
+	echo "Mounting file system"
+	sudo mount /dev/mapper/partition_$target ./$target
+	sudo chown $USER:$USER ./$target
+elif [ $operation = 'umount' ]
+then
+	target=$2
+	
+	echo "Syncing"
+	sync
+
+	echo "Unmounting file system"
+	sudo umount ./$target
+
+	echo "Closing Block Device"
+	sudo cryptsetup close partition_$target
+
+	echo "Unmounting container"
+	sudo fusermount -u ./.container_$target
+else
+	echo "Valid commands: create mount umount"
+fi
